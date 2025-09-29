@@ -1,0 +1,25 @@
+# Copy this file to terraform.tfvars and customize the values
+
+# AWS Configuration
+aws_region = "us-west-2"
+environment = "demo"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = 2
+
+# Security Configuration
+# Restrict this to your IP address or corporate CIDR blocks for security
+allowed_cidr_blocks = ["0.0.0.0/0"]  # WARNING: This allows access from anywhere
+
+# EC2 Configuration
+# Generate a key pair: ssh-keygen -t rsa -b 4096 -f ~/.ssh/opswat-demo
+# Then paste the content of ~/.ssh/opswat-demo.pub here
+public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAA... your-public-key-here"
+
+instance_type = "t3.medium"
+desired_capacity = 1
+
+# OPSWAT Configuration
+# Contact OPSWAT for a valid license key
+metadefender_license_key = ""

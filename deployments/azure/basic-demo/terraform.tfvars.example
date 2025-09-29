@@ -1,0 +1,24 @@
+# Copy this file to terraform.tfvars and customize the values
+
+# Azure Configuration
+azure_region = "East US"
+environment = "demo"
+
+# Network Configuration
+vnet_cidr = "10.0.0.0/16"
+
+# Security Configuration
+# Restrict this to your IP address or corporate CIDR blocks for security
+allowed_cidr_blocks = ["0.0.0.0/0"]  # WARNING: This allows access from anywhere
+
+# VM Configuration
+# Generate a key pair: ssh-keygen -t rsa -b 4096 -f ~/.ssh/opswat-demo
+# Then paste the content of ~/.ssh/opswat-demo.pub here
+public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAA... your-public-key-here"
+
+vm_size = "Standard_B2s"
+vm_instances = 1
+
+# OPSWAT Configuration
+# Contact OPSWAT for a valid license key
+metadefender_license_key = ""
