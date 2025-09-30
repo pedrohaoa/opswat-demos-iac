@@ -87,9 +87,6 @@ module minio 'modules/minio-vm.bicep' = {
     adminUsername: adminUsername
     adminPassword: adminPassword
   }
-  dependsOn: [
-    kv // Asegurarnos de que el KV exista antes de crear la VM
-  ]
 }
 
 // --- Módulos de OPSWAT ---
@@ -130,7 +127,8 @@ resource kvPrivateDns 'Microsoft.Network/privateDnsZones@2020-06-01' = {
 }
 
 resource kvPrivateDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
-  name: '${kvPrivateDns.name}/${namePrefix}-kv-vnetlink'
+  name: '${namePrefix}-kv-vnetlink'
+  parent: kvPrivateDns
   properties: {
     virtualNetwork: {
       id: vnet.id
@@ -159,15 +157,12 @@ resource kvPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
       }
     ]
   }
-  dependsOn: [
-    kv
-    vnet
-  ]
 }
 
 // Vincula automáticamente la zona privada al PE (crea el A record)
 resource kvPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2022-07-01' = {
-  name: '${kvPrivateEndpoint.name}/kv-dnszonegroup'
+  name: 'kv-dnszonegroup'
+  parent: kvPrivateEndpoint
   properties: {
     privateDnsZoneConfigs: [
       {
@@ -179,9 +174,7 @@ resource kvPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZon
     ]
   }
   dependsOn: [
-    kvPrivateDns
     kvPrivateDnsLink
-    kvPrivateEndpoint
   ]
 }
 
@@ -214,10 +207,6 @@ resource bastion 'Microsoft.Network/bastionHosts@2023-05-01' = {
       }
     ]
   }
-  dependsOn: [
-    vnet
-    pipBastion
-  ]
 }
 
 
@@ -275,9 +264,6 @@ resource kvDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
       }
     ]
   }
-  dependsOn: [
-    law
-  ]
 }
 
 // Diagnostic Settings para NSG de MinIO -> Log Analytics
@@ -315,9 +301,6 @@ resource nsgDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
       }
     ]
   }
-  dependsOn: [
-    law
-  ]
 }
 
 
