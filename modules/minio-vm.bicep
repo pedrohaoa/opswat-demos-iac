@@ -7,7 +7,7 @@
  @secure()
  param adminPassword string
  @minValue(50)
- param dataDiskSizeGB int = 512
+ param dataDiskSizeGB int = 256
 
 // Cloud-Config (cloud-init) codificado en Base64
 var cloudInit = base64(loadTextContent('../cloud-init/minio-cloud-config.yaml'))
