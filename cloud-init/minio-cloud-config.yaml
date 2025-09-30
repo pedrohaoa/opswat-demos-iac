@@ -1,0 +1,50 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - jq
+  - curl
+  - xfsprogs
+
+runcmd:
+  # 1) Preparar y montar el data disk (LUN 0) en /data (XFS)
+  - [ bash, -lc, 'set -euxo pipefail' ]
+  - [ bash, -lc, 'DISK=/dev/disk/azure/scsi1/lun0; mkdir -p /data; if ! blkid "$DISK" >/dev/null 2>&1; then mkfs.xfs -f "$DISK"; fi' ]
+  - [ bash, -lc, 'grep -q "/data " /etc/fstab || echo "/dev/disk/azure/scsi1/lun0 /data xfs defaults,nofail 0 2" >> /etc/fstab' ]
+  - [ bash, -lc, 'mount -a' ]
+
+  # 2) Docker
+  - [ bash, -lc, 'systemctl enable --now docker' ]
+
+  # 3) Leer tags (keyvaultName y uamiClientId) desde IMDS
+  - [ bash, -lc, 'META="http://169.254.169.254/metadata"; \
+      TAGS=$(curl -s -H Metadata:true "$META/instance/compute/tagsList?api-version=2021-02-01"); \
+      export KEYVAULT_NAME=$(echo "$TAGS" | jq -r ".[] | select(.name==\"keyvaultName\") | .value"); \
+      export UAMI_CLIENT_ID=$(echo "$TAGS" | jq -r ".[] | select(.name==\"uamiClientId\") | .value"); \
+      echo "KV=$KEYVAULT_NAME UAMI=$UAMI_CLIENT_ID" ' ]
+
+  # 4) Token para Key Vault vía UAMI
+  - [ bash, -lc, 'export KV_TOKEN=$(curl -s -H Metadata:true \
+      "$META/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net&client_id=${UAMI_CLIENT_ID}" \
+      | jq -r ".access_token")' ]
+
+  # 5) Obtener secretos de Key Vault (minio-root-user / minio-root-password)
+  - [ bash, -lc, 'export KV_URI="https://${KEYVAULT_NAME}.vault.azure.net"; \
+      export MINIO_ROOT_USER=$(curl -s -H "Authorization: Bearer ${KV_TOKEN}" \
+        "$KV_URI/secrets/minio-root-user?api-version=7.4" | jq -r ".value"); \
+      export MINIO_ROOT_PASSWORD=$(curl -s -H "Authorization: Bearer ${KV_TOKEN}" \
+        "$KV_URI/secrets/minio-root-password?api-version=7.4" | jq -r ".value")' ]
+
+  # 6) Lanzar MinIO (API 9000 / Consola 9001) sobre /data
+  - [ bash, -lc, 'mkdir -p /data/minio/data /data/minio/config' ]
+  - [ bash, -lc, 'docker rm -f minio >/dev/null 2>&1 || true' ]
+  - [ bash, -lc, 'docker run -d --name minio --restart=always \
+        -p 9000:9000 -p 9001:9001 \
+        -e MINIO_ROOT_USER="${MINIO_ROOT_USER}" \
+        -e MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
+        -v /data/minio/data:/data \
+        -v /data/minio/config:/root/.minio \
+        minio/minio server /data --console-address ":9001"' ]
+
+final_message: "cloud-init: MinIO instalado y ejecutándose. Data disk montado en /data. (KV via UAMI)"
+# Nota: El acceso a MinIO (9000/9001) debe ser a través de la VNet (p.ej. Bastion o salt-jump)
