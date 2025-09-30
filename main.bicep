@@ -18,6 +18,8 @@ param adminObjectId string
 var vnetName = '${namePrefix}-vnet'
 var keyVaultName = '${namePrefix}-kv-${uniqueString(resourceGroup().id)}' // Nombre único global
 
+
+
 // --- Módulo de Red ---
 // Asumimos que opswat-demos-iac tiene un módulo de red o creamos uno simple.
 // Por simplicidad, definiremos la red aquí directamente.
@@ -43,6 +45,20 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
           addressPrefix: '10.0.2.0/24'
         }
       }
+      {
+        // Bastion: nombre obligatorio y /26 mínimo
+        name: 'AzureBastionSubnet'
+        properties: {
+          addressPrefix: '10.0.3.0/24'
+        }
+      }
+      {
+        // Subred de administración (para jumpbox u otras VMs de ops)
+        name: 'snet-admin'
+        properties: {
+          addressPrefix: '10.0.4.0/24'
+        }
+      }  
     ]
   }
 }
@@ -166,6 +182,141 @@ resource kvPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZon
     kvPrivateDns
     kvPrivateDnsLink
     kvPrivateEndpoint
+  ]
+}
+
+// Public IP para Bastion
+resource pipBastion 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
+  name: '${namePrefix}-pip-bastion'
+  location: location
+  sku: { name: 'Standard' }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+  }
+}
+
+// Bastion Host
+resource bastion 'Microsoft.Network/bastionHosts@2023-05-01' = {
+  name: '${namePrefix}-bastion'
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'bastion-ipconf'
+        properties: {
+          subnet: {
+            id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, 'AzureBastionSubnet')
+          }
+          publicIPAddress: {
+            id: pipBastion.id
+          }
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    vnet
+    pipBastion
+  ]
+}
+
+
+// Apuntar al Key Vault creado por tu módulo
+resource kvExisting 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+// Apuntar al NSG de MinIO (nombre tal como lo definiste en modules/minio-vm.bicep)
+resource nsgMinioExisting 'Microsoft.Network/networkSecurityGroups@2023-05-01' existing = {
+  name: 'nsg-minio-vm'
+}
+
+
+@minValue(7)
+@maxValue(730)
+param lawRetentionDays int = 30
+
+resource law 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: '${namePrefix}-law'
+  location: location
+  properties: {
+    retentionInDays: lawRetentionDays
+    features: {
+      searchVersion: 2
+    }
+  }
+}
+
+
+// Diagnostic Settings para Key Vault -> Log Analytics
+resource kvDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: '${namePrefix}-kv-to-law'
+  scope: kvExisting
+  properties: {
+    workspaceId: law.id
+    logs: [
+      {
+        category: 'AuditEvent'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    law
+  ]
+}
+
+// Diagnostic Settings para NSG de MinIO -> Log Analytics
+resource nsgDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: '${namePrefix}-nsg-minio-to-law'
+  scope: nsgMinioExisting
+  properties: {
+    workspaceId: law.id
+    logs: [
+      {
+        category: 'NetworkSecurityGroupEvent'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+      {
+        category: 'NetworkSecurityGroupRuleCounter'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    law
   ]
 }
 
