@@ -205,3 +205,59 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# ---- SO / Editor ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.code-workspace
+
+# ---- Node / Tools (por si se usan tareas locales) ----
+node_modules/
+dist/
+out/
+coverage/
+
+# ---- Bicep / ARM / Build ----
+*.json           # plantillas ARM compiladas (si generas con bicep build)
+*.arm.json
+*.bicepParameters.json
+*.bicepparam.local*    # param locales
+*.parameters.json
+
+# ---- Logs / Temp ----
+*.log
+logs/
+tmp/
+temp/
+
+# ---- Credenciales / Secretos (patrones comunes) ----
+*.key
+*.pem
+*.pfx
+*.cer
+*.crt
+*.env
+.env.*
+secrets/*
+**/*secret*.*
+**/*password*.*
+**/*passwd*.*
+**/*token*.*
+**/*apikey*.*
+**/*credentials*.*
+**/*vault*.*
+**/*sas*.*
+**/*connectionstring*.*
+**/*connstr*.*
+
+# ---- CLI/Tools output ----
+.azurite/
+terraform.tfstate*
+*.tfvars
+.terraform/
+
+# ---- Sistemas CI ----
+# (si usas GH Actions o ADO, agrega aquí artefactos de build)
